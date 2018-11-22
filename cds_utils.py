@@ -134,27 +134,30 @@ def find_earliest(**kwargs):
 # need to be scalable across different stock tickers
 # might need to normalize values for easy learning
 # accepts a list of dataframes with first column as dates strictly
-def DataGenerator(train_points=60, test_freq='daily', **kwargs):
+def DataGenerator(train_points=60, next='day', **kwargs):
     # create full dataframe and forward fill NaN days due to holiday
     full_df = pd.DataFrame()
     for item in kwargs:
+        #print(kwargs[item].head(100))
         full_df = full_df.join(kwargs[item], how='outer')
     full_df = full_df.fillna(method='ffill')
+    # get min and max dates from all data sources
+    all_index = {item:kwargs[item].index for item in kwargs}
+    min_date, max_date = find_earliest(**all_index)
+    #print(full_df.iloc[1050:])
+    #print(full_df.isnull().any(axis=1).iloc[1050:])
+    #exit()
 
-    all_items = {item:kwargs[item].index for item in kwargs}
-    min_date, max_date = find_earliest(**all_items)
-    
     #one_day = pd.Timedelta(days=1)
-    one_day = BDay()*1
-    
+    one_day = BDay()*1 # setting of a constant
     test_date = min_date + BDay()*train_points
     #test_date = min_date + pd.Timedelta(days=train_points)
     train_date = (min_date, min_date+(BDay()*(train_points-1)))
     #train_date = (min_date, test_date - one_day)
     
-    if test_freq == 'weekly':
+    if next == 'week':
         test_date = test_date + pd.Timedelta(days=7) # weekly basis
-    elif test_freq == 'monthly':
+    elif next == 'month':
         #test_date = test_date + pd.Timedelta(months=1) # monthly basis
         #test_date = test_date + pd.DateOffset(months=1) # monthly basis
         test_date = test_date + pd.DateOffset(weeks=4) # monthly basis (4 weeks)
@@ -174,7 +177,11 @@ def DataGenerator(train_points=60, test_freq='daily', **kwargs):
         while True:
             try:
                 adjclose = kwargs['price'].loc[temp_test_date,'Adj Close']
-                y_train = (test_date.strftime('%Y-%m-%d'), adjclose)
+                lastprice = x_train.iloc[-1]['Adj Close']
+                direction = 1
+                if float(adjclose)<float(lastprice):
+                    direction = 0
+                y_train = (test_date.strftime('%Y-%m-%d'), adjclose, direction)
                 break
             except KeyError:
                 temp_test_date = temp_test_date - one_day
@@ -204,30 +211,29 @@ if __name__=='__main__':
     #compile_financial('AAPL/')
 
     # Step 2: Extract csv files into pandas dataframe
-    # financial dataframe
-    financial = pd.read_csv('AAPL - key_financial.csv', parse_dates=[1])
+    # (1) financial dataframe
+    financial = pd.read_csv('AAPL - financial.csv', parse_dates=[1])
     financial = interpolate_data(financial, method='zero')
-    # price dataframe
-    price = pd.read_csv('cds/AAPL(011005-011018).csv', parse_dates=[0]) # path to price 
+    # (2) price dataframe
+    price = pd.read_csv('AAPL - price.csv', parse_dates=[0]) # path to price 
     price.set_index('Date', inplace=True)
-    # technical dataframe
-    technical = pd.read_csv('cds/technical_indicators.csv', parse_dates=[0])
+    # (3) technical dataframe
+    technical = pd.read_csv('AAPL - technical.csv', parse_dates=[0])
     technical.set_index('Date', inplace=True)
-    # camel case column names 
+    # camel case column names for technical
     for old_column in technical:
         new_column = ' '.join([word.title() for word in old_column.split('_')])
         technical.rename(columns={old_column:new_column}, inplace=True)
 
     # Parse the dataframes into a DataGenerator
-    data_generator = DataGenerator(test_freq='daily', financial=financial, price=price, technical=technical)
+    data_generator = DataGenerator(next='day', financial=financial, price=price, technical=technical)
     i=0
     for x_train,y_train in data_generator:
-        print(x_train)
+        print(x_train.to_string())
         print(y_train)
         print(x_train.columns)
-        exit()
         i+=1
-        if i>100:
+        if i>10:
             break
         
     

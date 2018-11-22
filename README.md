@@ -28,4 +28,4 @@ Takes in datetime indexes of dataframes to find the overlapping min and max date
 data_generator(train_points, test_freq, **kwargs)
 ```
 
-A Python generator for generating x_train and y_train. train_points specifies the number of days to train for per batch. test_freq specifies the frequency basis of output (e.g. 'daily' means predicting the next day price). **kwargs are dataframes from the various data sources. Returns a batch of x_train and y_train, where x_train is a dataframe while y_train is of the form (date, actual price)
+A Python generator for generating x_train and y_train. train_points specifies the number of days to train for per batch. test_freq specifies the frequency basis of output (e.g. 'daily' means predicting the next day price). **kwargs are dataframes from the various data sources. Returns a batch of x_train and y_train, where x_train is a dataframe while y_train is of the form (date, actual price, direction)
