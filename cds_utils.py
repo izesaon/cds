@@ -144,8 +144,13 @@ def combine_datasets(**kwargs):
     all_index = {item:kwargs[item].index for item in kwargs}
     min_date, max_date = find_earliest(**all_index)
 
+    final = full_df.loc[min_date:max_date,:] 
+
+    # save a local copy of the dataset
+    final.to_csv('AAPL - main.csv')
+
     # return dataset with overlapping dates
-    return full_df.loc[min_date:max_date,:]
+    return final
 
 def train_test_split(dataset, spl=0.9):
     cut_index = math.ceil(len(dataset.index)*spl)
@@ -202,26 +207,33 @@ def data_generator(dataset, train_days=60, next='day'):
         count+=1
 
 if __name__=='__main__':
-    # STEP 1:: Aggregate financial data from discrete csv files
-    #compile_financial('AAPL/')
 
-    # STEP 2: Extract csv files into pandas dataframe
-    # (1) financial dataframe
-    financial = pd.read_csv('AAPL - financial.csv', parse_dates=[1])
-    financial = interpolate_data(financial, method='zero')
-    # (2) price dataframe
-    price = pd.read_csv('AAPL - price.csv', parse_dates=[0]) # path to price 
-    price.set_index('Date', inplace=True)
-    # (3) technical dataframe
-    technical = pd.read_csv('AAPL - technical.csv', parse_dates=[0])
-    technical.set_index('Date', inplace=True)
-    # camel case column names for technical
-    for old_column in technical:
-        new_column = ' '.join([word.title() for word in old_column.split('_')])
-        technical.rename(columns={old_column:new_column}, inplace=True)
+    # STEP 0: Check if combined dataset exists. If exists, GO TO STEP 4
+    filename = 'AAPL - main.csv'
+    if os.path.isfile(filename):
+        dataset = pd.read_csv(filename, parse_dates=[0])
+        dataset.set_index('Date', inplace=True)
+    else:
+        # STEP 1:: Aggregate financial data from discrete csv files
+        #compile_financial('AAPL/')
 
-    # STEP 3: Join different datasets based on overlapping dates
-    dataset = combine_datasets(financial=financial, price=price, technical=technical)
+        # STEP 2: Extract csv files into pandas dataframe
+        # (1) financial dataframe
+        financial = pd.read_csv('AAPL - financial.csv', parse_dates=[1])
+        financial = interpolate_data(financial, method='zero')
+        # (2) price dataframe
+        price = pd.read_csv('AAPL - price.csv', parse_dates=[0]) # path to price 
+        price.set_index('Date', inplace=True)
+        # (3) technical dataframe
+        technical = pd.read_csv('AAPL - technical.csv', parse_dates=[0])
+        technical.set_index('Date', inplace=True)
+        # camel case column names for technical
+        for old_column in technical:
+            new_column = ' '.join([word.title() for word in old_column.split('_')])
+            technical.rename(columns={old_column:new_column}, inplace=True)
+
+        # STEP 3: Join different datasets based on overlapping dates
+        dataset = combine_datasets(financial=financial, price=price, technical=technical)
 
     # STEP 4: Split the dataset into train and test
     train, test = train_test_split(dataset, spl=0.5)
@@ -232,8 +244,8 @@ if __name__=='__main__':
     for x_train,y_train in data_gen:
         print(x_train.to_string())
         print(y_train)
-        print(x_train.columns)
-        
+        #print(x_train.columns)
+
         i+=1
         #if i>10:
         #   break
