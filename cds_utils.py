@@ -3,6 +3,7 @@ import os
 import matplotlib.pyplot as plt
 from pandas.tseries.offsets import BDay
 import copy
+import math
 
 # FINANCIAL INDICATORS
 # profitability: gross profit margin, operating profit margin, net profit margin, EBITDA margin
@@ -87,7 +88,6 @@ def compile_financial(path):
 
 # function for interpolating data to business daily
 def interpolate_data(df, method='zero'):
-    
     df.set_index('Date',inplace=True)
     # shift index to 1 day back from sat to fri
     for index, row in df.iterrows():
@@ -130,87 +130,82 @@ def find_earliest(**kwargs):
     print('Min date: {}, Max date: {}'.format(min_date, max_date))
     return min_date, max_date
 
-# generates a 
-# need to be scalable across different stock tickers
-# might need to normalize values for easy learning
-# accepts a list of dataframes with first column as dates strictly
-def DataGenerator(train_points=60, next='day', **kwargs):
+# Purpose:
+# 1. join datasets from different sources by overlapping dates
+# 2. fill NA values after joining
+def combine_datasets(**kwargs):
     # create full dataframe and forward fill NaN days due to holiday
     full_df = pd.DataFrame()
     for item in kwargs:
-        #print(kwargs[item].head(100))
         full_df = full_df.join(kwargs[item], how='outer')
     full_df = full_df.fillna(method='ffill')
+
     # get min and max dates from all data sources
     all_index = {item:kwargs[item].index for item in kwargs}
     min_date, max_date = find_earliest(**all_index)
-    #print(full_df.iloc[1050:])
-    #print(full_df.isnull().any(axis=1).iloc[1050:])
-    #exit()
 
-    #one_day = pd.Timedelta(days=1)
-    one_day = BDay()*1 # setting of a constant
-    test_date = min_date + BDay()*train_points
-    #test_date = min_date + pd.Timedelta(days=train_points)
-    train_date = (min_date, min_date+(BDay()*(train_points-1)))
-    #train_date = (min_date, test_date - one_day)
-    
-    if next == 'week':
-        test_date = test_date + pd.Timedelta(days=7) # weekly basis
+    # return dataset with overlapping dates
+    return full_df.loc[min_date:max_date,:]
+
+def train_test_split(dataset, spl=0.9):
+    cut_index = math.ceil(len(dataset.index)*spl)
+    return dataset.iloc[:cut_index,:], dataset.iloc[cut_index:]
+
+def get_dates(pointer, train_days, next):
+    x_date = (pointer - train_days + (BDay() * 1) , pointer) 
+    if next == 'day':
+        y_date = pointer + (BDay() * 1 ) # next day
+    elif next == 'week':
+        y_date = pointer + pd.Timedelta(days=7) # next week
     elif next == 'month':
-        #test_date = test_date + pd.Timedelta(months=1) # monthly basis
-        #test_date = test_date + pd.DateOffset(months=1) # monthly basis
-        test_date = test_date + pd.DateOffset(weeks=4) # monthly basis (4 weeks)
+        y_date = pointer + pd.DateOffset(weeks=4) # next month (4 weeks)
+    return x_date, y_date
+
+# need to be scalable across different stock tickers
+# might need to normalize values for easy learning
+def data_generator(dataset, train_days=60, next='day'):
+    # constants
+    min_date = dataset.index[0]
+    max_date = dataset.index[-1]
+    train_days = BDay() * train_days
+    one_day = BDay() * 1 
     
+    pointer = min_date + train_days - one_day # fix end of x_date as pointer and use pointer as reference
+    x_date, y_date = get_dates(pointer, train_days, next)
+
     count = 0
-    while test_date<max_date:
-        # extract x_train
-        x_train = full_df.loc[train_date[0]:train_date[1],:]
-        #x_train = pd.DataFrame()
-        #for item in kwargs:
-        #    temp_traindf = kwargs[item].loc[train_date[0]:train_date[1],:]
-        #    x_train = x_train.join(temp_traindf,how='outer')
-        #x_train = x_train.fillna(method='ffill')
-        assert not (x_train.isnull().values.any()), 'Error: there are NaN values.'
+    while y_date<max_date:
+        x = dataset.loc[x_date[0]:x_date[1],:]
+        assert not (x.isnull().values.any()), 'Error: there are NaN values'
         # extract y_train (in case there is mising adj close values, so we keep going back to previous price)
-        temp_test_date = copy.deepcopy(test_date)
+        temp_y_date = copy.deepcopy(y_date)
         while True:
             try:
-                adjclose = kwargs['price'].loc[temp_test_date,'Adj Close']
-                lastprice = x_train.iloc[-1]['Adj Close']
+                adjclose = dataset.loc[temp_y_date,'Adj Close']
+                lastprice = x.iloc[-1]['Adj Close']
                 direction = 1
                 if float(adjclose)<float(lastprice):
                     direction = 0
-                y_train = (test_date.strftime('%Y-%m-%d'), adjclose, direction)
+                y = (y_date.strftime('%Y-%m-%d'), adjclose, direction)
                 break
             except KeyError:
-                temp_test_date = temp_test_date - one_day
+                temp_y_date = temp_y_date - one_day
                 continue
 
         print("**********************************************************")
         print("Iteration {}".format(count))
-        print("Generating {} rows of training data".format(x_train.shape))
-        yield x_train, y_train
+        print("Generating {} rows of training data".format(x.shape))
+        yield x, y
         
-
-        test_date = test_date+one_day
-        train_date = (train_date[0]+one_day, train_date[1]+one_day)
+        pointer = pointer + one_day
+        x_date, y_date = get_dates(pointer, train_days, next)
         count+=1
 
-
-
-# class DataGenerator:
-#     def __iter__():
-#         pass
-#     def __next__():
-#         pass
-
-
 if __name__=='__main__':
-    # Step 1: Aggregate financial data from discrete csv files
+    # STEP 1:: Aggregate financial data from discrete csv files
     #compile_financial('AAPL/')
 
-    # Step 2: Extract csv files into pandas dataframe
+    # STEP 2: Extract csv files into pandas dataframe
     # (1) financial dataframe
     financial = pd.read_csv('AAPL - financial.csv', parse_dates=[1])
     financial = interpolate_data(financial, method='zero')
@@ -225,17 +220,20 @@ if __name__=='__main__':
         new_column = ' '.join([word.title() for word in old_column.split('_')])
         technical.rename(columns={old_column:new_column}, inplace=True)
 
-    # Parse the dataframes into a DataGenerator
-    data_generator = DataGenerator(next='day', financial=financial, price=price, technical=technical)
+    # STEP 3: Join different datasets based on overlapping dates
+    dataset = combine_datasets(financial=financial, price=price, technical=technical)
+
+    # STEP 4: Split the dataset into train and test
+    train, test = train_test_split(dataset, spl=0.5)
+
+    # STEP 5: Parse the train/test dataframe into a data generator
+    data_gen = data_generator(train, train_days=60, next='day')
     i=0
-    for x_train,y_train in data_generator:
+    for x_train,y_train in data_gen:
         print(x_train.to_string())
         print(y_train)
         print(x_train.columns)
-        i+=1
-        if i>10:
-            break
         
-    
-    #print(financial.head())
-    #print(price.head())
+        i+=1
+        #if i>10:
+        #   break
