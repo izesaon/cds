@@ -149,9 +149,6 @@ def combine_datasets(**kwargs):
 
     final = full_df.loc[min_date:max_date,:] 
 
-    # save a local copy of the dataset
-    final.to_csv('AAPL - main.csv')
-
     # return dataset with overlapping dates
     return final
 
@@ -160,6 +157,9 @@ def preprocess_dataset(dataset):
     dataset.loc[:,'Adj Close'] = np.log(dataset.loc[:,'Adj Close'])
     # (2) normalize all columns except for price
     dataset = (dataset - dataset.min()) / (dataset.max() - dataset.min())
+
+    # save a local copy of the dataset
+    dataset.to_csv('AAPL - main.csv')
 
     return dataset
 
