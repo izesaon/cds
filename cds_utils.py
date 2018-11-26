@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import os
 import matplotlib.pyplot as plt
 from pandas.tseries.offsets import BDay
@@ -139,6 +140,8 @@ def combine_datasets(**kwargs):
     for item in kwargs:
         full_df = full_df.join(kwargs[item], how='outer')
     full_df = full_df.fillna(method='ffill')
+    # drop unnecessary columns
+    full_df = full_df.drop(['Quarter', 'Open', 'High', 'Low', 'Close', 'Volume'], axis=1)
 
     # get min and max dates from all data sources
     all_index = {item:kwargs[item].index for item in kwargs}
@@ -151,6 +154,14 @@ def combine_datasets(**kwargs):
 
     # return dataset with overlapping dates
     return final
+
+def preprocess_dataset(dataset):
+    # (1) log price to focus on percentage change instead of absolute change
+    dataset.loc[:,'Adj Close'] = np.log(dataset.loc[:,'Adj Close'])
+    # (2) normalize all columns except for price
+    dataset = (dataset - dataset.min()) / (dataset.max() - dataset.min())
+
+    return dataset
 
 def train_test_split(dataset, spl=0.9):
     cut_index = math.ceil(len(dataset.index)*spl)
@@ -197,9 +208,9 @@ def data_generator(dataset, train_days=60, next='day'):
                 temp_y_date = temp_y_date - one_day
                 continue
 
-        print("**********************************************************")
-        print("Iteration {}".format(count))
-        print("Generating {} rows of training data".format(x.shape))
+        #print("**********************************************************")
+        #print("Iteration {}".format(count))
+        #print("Generating {} rows of training data".format(x.shape))
         yield x, y
         
         pointer = pointer + one_day
@@ -235,10 +246,13 @@ if __name__=='__main__':
         # STEP 3: Join different datasets based on overlapping dates
         dataset = combine_datasets(financial=financial, price=price, technical=technical)
 
-    # STEP 4: Split the dataset into train and test
+        # STEP 4: Preprocessing of dataset
+        dataset = preprocess_dataset(dataset)
+
+    # STEP 5: Split the dataset into train and test
     train, test = train_test_split(dataset, spl=0.5)
 
-    # STEP 5: Parse the train/test dataframe into a data generator
+    # STEP 6: Parse the train/test dataframe into a data generator
     data_gen = data_generator(train, train_days=60, next='day')
     i=0
     for x_train,y_train in data_gen:
