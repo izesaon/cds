@@ -3,3 +3,5 @@
 *.tex
 *.png
 * - main.csv
+*.pkl
+__pycache__/
