@@ -245,12 +245,16 @@ if __name__=='__main__':
 
         # STEP 3: Join different datasets based on overlapping dates
         dataset = combine_datasets(financial=financial, price=price, technical=technical)
-
         # STEP 4: Preprocessing of dataset
         dataset = preprocess_dataset(dataset)
 
     # STEP 5: Split the dataset into train and test
-    train, test = train_test_split(dataset, spl=0.5)
+    train, test = train_test_split(dataset, spl=0.9)
+    print(train.index[0])
+    print(train.index[-1])
+    print(test.index[0])
+    print(test.index[-1])
+    exit()
 
     # STEP 6: Parse the train/test dataframe into a data generator
     data_gen = data_generator(train, train_days=60, next='day')
