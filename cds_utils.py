@@ -32,7 +32,18 @@ import math
 ##############################################################################
 # follow naming convention of file
 # need the exact naming in the file to extract the values
+
+# AAPL
 fin_ind = {'Income Statement':['Basic EPS'], 'Profitability Ratio':['Gross Margin'], 
+            'Growth Ratio':['Revenue'], 'Working Capital Ratio':['Inventory to Cash Days'], 
+            'Liquidity Ratio':['Cash Ratio']}
+# MSFT
+fin_ind = {'Income Statement':['Basic'], 'Profitability Ratio':['Gross Margin'], 
+            'Growth Ratio':['Revenue'], 'Working Capital Ratio':['Inventory to Cash Days'], 
+            'Liquidity Ratio':['Cash Ratio']}
+
+# GOOGL
+fin_ind = {'Income Statement':['Basic'], 'Profitability Ratio':['Gross Margin'], 
             'Growth Ratio':['Revenue'], 'Working Capital Ratio':['Inventory to Cash Days'], 
             'Liquidity Ratio':['Cash Ratio']}
 
@@ -63,10 +74,11 @@ def compile_financial(path):
         if ratio_list==-1:
             continue
         for ratio in ratio_list:
+            print("RATIO", ratio)
             # special case for repeated words
             if ratio_type == 'Growth Ratio':
                 df = df.iloc[df.index.get_loc(key='Sequential Growth'):,:] # only extract the sequential growth portion
-            if ratio_type == 'Income Statement':
+            if ratio_type == 'Income Statement' and path=='AAPL/':
                 df = df.iloc[:df.index.get_loc(key='Net Income'),:]
             # create a new series with indexes as the column names
             #new_series = pd.Series(df.loc[ratio,:].values, index=compiled_df.columns.values)
@@ -74,7 +86,18 @@ def compile_financial(path):
             #compiled_df = compiled_df.append(new_series)
             temp_df = df.loc[[ratio],:]
             temp_df.columns = header_names
-            compiled_df = compiled_df.append(temp_df)
+            print('temp')
+            print(temp_df)
+            compiled_df = compiled_df.append(temp_df, sort=False)
+            print('compile')
+            print(compiled_df)
+
+    # fill '-' with 0
+    #compiled_df.replace(to_replace='(?! [+-]?([0-9]*[.])?[0-9]+)',value=0 ,inplace=True, regex=True)
+    compiled_df.replace(to_replace='[^\x00-\x7F]',value=0.0 ,inplace=True, regex=True)
+    # fill NaN with 0
+    compiled_df.fillna(0.0, inplace=True)
+
     
     # rename indexes
     compiled_df.rename({'3 Months Ending':'Date'},inplace=True)
@@ -85,7 +108,7 @@ def compile_financial(path):
     # transposing dataframe
     compiled_df = compiled_df.T
     print(compiled_df)
-    compiled_df.to_csv(path.replace('/','')+' - key_financial.csv')
+    compiled_df.to_csv(path.replace('/','')+' - financial.csv')
 
 # function for interpolating data to business daily
 def interpolate_data(df, method='zero'):
@@ -158,9 +181,6 @@ def preprocess_dataset(dataset):
     # (2) normalize all columns except for price
     dataset = (dataset - dataset.min()) / (dataset.max() - dataset.min())
 
-    # save a local copy of the dataset
-    dataset.to_csv('AAPL - main.csv')
-
     return dataset
 
 def train_test_split(dataset, spl=0.9):
@@ -219,8 +239,12 @@ def data_generator(dataset, train_days=60, next='day'):
 
 if __name__=='__main__':
 
+    #compile_financial('MSFT/')
+    #exit()
+
     # STEP 0: Check if combined dataset exists. If exists, GO TO STEP 4
-    filename = 'AAPL - main.csv'
+    company = 'AAPL'
+    filename = company+' - main.csv'
     if os.path.isfile(filename):
         dataset = pd.read_csv(filename, parse_dates=[0])
         dataset.set_index('Date', inplace=True)
@@ -230,13 +254,13 @@ if __name__=='__main__':
 
         # STEP 2: Extract csv files into pandas dataframe
         # (1) financial dataframe
-        financial = pd.read_csv('AAPL - financial.csv', parse_dates=[1])
+        financial = pd.read_csv(company+' - financial.csv', parse_dates=[1])
         financial = interpolate_data(financial, method='zero')
         # (2) price dataframe
-        price = pd.read_csv('AAPL - price.csv', parse_dates=[0]) # path to price 
+        price = pd.read_csv(company+' - price.csv', parse_dates=[0]) # path to price 
         price.set_index('Date', inplace=True)
         # (3) technical dataframe
-        technical = pd.read_csv('AAPL - technical.csv', parse_dates=[0])
+        technical = pd.read_csv(company+' - technical.csv', parse_dates=[0])
         technical.set_index('Date', inplace=True)
         # camel case column names for technical
         for old_column in technical:
@@ -247,6 +271,8 @@ if __name__=='__main__':
         dataset = combine_datasets(financial=financial, price=price, technical=technical)
         # STEP 4: Preprocessing of dataset
         dataset = preprocess_dataset(dataset)
+        # save a local copy of the dataset
+        dataset.to_csv(company+' - main.csv')
 
     # STEP 5: Split the dataset into train and test
     train, test = train_test_split(dataset, spl=0.9)

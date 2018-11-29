@@ -129,7 +129,8 @@ class SVC:
 if __name__=='__main__':
 
     # STEP 0: Check if combined dataset exists. If exists, GO TO STEP 4
-    filename = 'AAPL - main.csv'
+    company = 'AAPL'
+    filename = ' - main.csv'
     if os.path.isfile(filename):
         dataset = pd.read_csv(filename, parse_dates=[0])
         dataset.set_index('Date', inplace=True)
@@ -139,13 +140,13 @@ if __name__=='__main__':
 
         # STEP 2: Extract csv files into pandas dataframe
         # (1) financial dataframe
-        financial = pd.read_csv('AAPL - financial.csv', parse_dates=[1])
+        financial = pd.read_csv(company+' - financial.csv', parse_dates=[1])
         financial = util.interpolate_data(financial, method='zero')
         # (2) price dataframe
-        price = pd.read_csv('AAPL - price.csv', parse_dates=[0]) # path to price 
+        price = pd.read_csv(company+' - price.csv', parse_dates=[0]) # path to price 
         price.set_index('Date', inplace=True)
         # (3) technical dataframe
-        technical = pd.read_csv('AAPL - technical.csv', parse_dates=[0])
+        technical = pd.read_csv(company+' - technical.csv', parse_dates=[0])
         technical.set_index('Date', inplace=True)
         # camel case column names for technical
         for old_column in technical:
@@ -157,6 +158,8 @@ if __name__=='__main__':
 
         # STEP 4: Preprocessing of dataset
         dataset = util.preprocess_dataset(dataset)
+        # save a local copy of the dataset
+        dataset.to_csv(company+' - main.csv')
 
     # STEP 5: Split the dataset into train and test
     train, test = util.train_test_split(dataset, spl=0.5)
