@@ -203,14 +203,23 @@ def data_generator(dataset, train_days=60, next='day'):
     # constants
     min_date = dataset.index[0]
     max_date = dataset.index[-1]
+    train_days_copy = copy.deepcopy(train_days)
     train_days = BDay() * train_days
     one_day = BDay() * 1 
+
+    #print('min_date',min_date)
+    #print('train_days',train_days)
+    #print('one_day',one_day)
+    #exit()
     
     pointer = min_date + train_days - one_day # fix end of x_date as pointer and use pointer as reference
+    #print('pointer', pointer)
+    #exit()
     x_date, y_date = get_dates(pointer, train_days, next)
 
     count = 0
     while y_date<max_date:
+        print('dates:',x_date)
         x = dataset.loc[x_date[0]:x_date[1],:]
         assert not (x.isnull().values.any()), 'Error: there are NaN values'
         # extract y_train (in case there is mising adj close values, so we keep going back to previous price)
@@ -231,6 +240,9 @@ def data_generator(dataset, train_days=60, next='day'):
         #print("**********************************************************")
         #print("Iteration {}".format(count))
         #print("Generating {} rows of training data".format(x.shape))
+        
+        print(x)
+        assert x.shape[0]==train_days_copy # ensures that number of training input is correct
         yield x, y
         
         pointer = pointer + one_day
@@ -242,8 +254,17 @@ if __name__=='__main__':
     #compile_financial('MSFT/')
     #exit()
 
+    # price = pd.read_csv("MSFT - price.csv", parse_dates=[0])
+    # price.set_index('Date',inplace=True)
+    # technical = pd.read_csv("MSFT - technical.csv")
+    # technical['Date'] = price.index
+    # technical.set_index('Date',inplace=True)
+    # technical.to_csv('MSFT - technical2.csv')
+
+    # exit()
+
     # STEP 0: Check if combined dataset exists. If exists, GO TO STEP 4
-    company = 'AAPL'
+    company = 'GOOGL'
     filename = company+' - main.csv'
     if os.path.isfile(filename):
         dataset = pd.read_csv(filename, parse_dates=[0])
@@ -266,7 +287,6 @@ if __name__=='__main__':
         for old_column in technical:
             new_column = ' '.join([word.title() for word in old_column.split('_')])
             technical.rename(columns={old_column:new_column}, inplace=True)
-
         # STEP 3: Join different datasets based on overlapping dates
         dataset = combine_datasets(financial=financial, price=price, technical=technical)
         # STEP 4: Preprocessing of dataset
@@ -276,14 +296,13 @@ if __name__=='__main__':
 
     # STEP 5: Split the dataset into train and test
     train, test = train_test_split(dataset, spl=0.9)
-    print(train.index[0])
-    print(train.index[-1])
-    print(test.index[0])
-    print(test.index[-1])
-    exit()
+    #print(train.index[0])
+    #print(train.index[-1])
+    #print(test.index[0])
+    #print(test.index[-1])
 
     # STEP 6: Parse the train/test dataframe into a data generator
-    data_gen = data_generator(train, train_days=60, next='day')
+    data_gen = data_generator(train, train_days=10, next='day')
     i=0
     for x_train,y_train in data_gen:
         print(x_train.to_string())
